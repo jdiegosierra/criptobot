@@ -10,7 +10,7 @@ import sched
 import pandas as pd
 import time
 
-def historicalData(mercado, intervalo, token_tlgrm, id_conversacion):
+def historicalData(mercado,intervalo,token_tlgrm,id_conversacion):
     
     """
     Descarga el histórico de datos de Bittrex del mercado pasado por argumento 
@@ -22,7 +22,6 @@ def historicalData(mercado, intervalo, token_tlgrm, id_conversacion):
         #intervalo = [“oneMin”, “fiveMin”, “thirtyMin”, “hour”, “day”]
     
     """          
-
     class PeriodicScheduler(object):                                                  
         def __init__(self):                                                           
             self.scheduler = sched.scheduler(time.time, time.sleep)                   

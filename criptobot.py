@@ -6,6 +6,7 @@ Proximo objetivo: Importar correctamente las funciones, depurar fallos
 from telegram.ext import Updater, Filters, MessageHandler, CommandHandler
 import logging
 from functions import historicalData
+from threading import Thread
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -31,12 +32,12 @@ def start(bot, update, args):
     #global h
     #h = up.job_queue.run_repeating(currencycheck, 10)
     """ 
-    AQUI VAN LAS FUNCIONES
+    Creamos un hilo por cada función para que se puedan ejecutar en paralelo
     """
     mercado = args[0] 
     intervalo = args[1]
-    print("mercado: " + mercado + "intervalo: " + intervalo)
-    historicalData(mercado, intervalo, token_tlgrm, id_conversacion)
+    thread = Thread(target = historicalData, args = (mercado, intervalo, token_tlgrm, id_conversacion,))
+    thread.start()
     #currencycheck(bot, ident)
 
 def error(bot, update, error):
