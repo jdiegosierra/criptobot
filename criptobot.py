@@ -1,44 +1,43 @@
 # -*- coding: utf-8 -*-
 """
-Proximo objetivo: Importar correctamente las funciones, depurar fallos
+
 """
 
 from telegram.ext import Updater, Filters, MessageHandler, CommandHandler
 import logging
-from functions import historicalData
+from functions import historicalData, magicHour
 from threading import Thread
+import time
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-    #Falta implementar bien el chat_id para no tener que ponerlo manualmente. Se hace con context.
-    #bot.send_message(chat_id=500840093, text=result)#Diego
-    #bot.send_message(chat_id=477349018, text='One message every 10')#Pablo
+# Mensaje en cuaquier caso
 def echo(bot, update):
-    text = "Escriba /start mercado('BTC-ETH') intervalo('day') para arrancar el bot."
+    text = "Escriba /start mercado(BTC-ETH) intervalo(hour) para arrancar el bot."
     text = text + ' Escriba "/STOP" para parar (EMERGENCIA) ATENCION!'
     text = text + ' con /STOP sólo se podrá volver a iniciar desde el ordenador'
     bot.send_message(chat_id=update.message.chat_id, text=text)
 
-    
+#  NO FUNCIONA
 def stop(bot, update):
-    text1 = "Desconexión de emergencia del bot. No podrá realizar más acciones."
-    bot.send_message(chat_id=update.message.chat_id, text=text1)
-    up.idle("SIGINT")
+    texto = "Desconexión de emergencia del bot. No podrá realizar más acciones."
+    bot.send_message(chat_id=update.message.chat_id, text=texto)
+    #up.idle("SIGINT")
     
 def start(bot, update, args):
-    # Add job to queue
-    #global h
-    #h = up.job_queue.run_repeating(currencycheck, 10)
     """ 
     Creamos un hilo por cada función para que se puedan ejecutar en paralelo
     """
     mercado = args[0] 
     intervalo = args[1]
-    thread = Thread(target = historicalData, args = (mercado, intervalo, token_tlgrm, id_conversacion,))
-    thread.start()
-    #currencycheck(bot, ident)
+    thread1 = Thread(target = historicalData, args = (mercado, intervalo, token_tlgrm, id_conversacion,))
+    thread1.start()
+    time.sleep(1) #Para asegurarnos que se ha actualizado el excel
+    if (intervalo == "hour"):
+        thread2 = Thread(target = magicHour, args = ())
+        thread2.start()
 
 def error(bot, update, error):
     """Log Errors caused by Updates."""
@@ -54,9 +53,7 @@ def main():
     up.dispatcher.add_handler(CommandHandler('STOP', stop))
     up.dispatcher.add_handler(CommandHandler('start', start, pass_args=True))
     up.dispatcher.add_handler(MessageHandler(Filters.text, echo))
-    #job_minute = job.run_repeating(callback_minute, interval=10, first=0)
-    #job_minute.enabled = False  # Temporarily disable this job
-    #job_minute.schedule_removal()  # Remove this job completely
+
     # log all errors
     up.dispatcher.add_error_handler(error)
     # Start the Bot

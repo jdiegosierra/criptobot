@@ -9,8 +9,37 @@ from bittrex.bittrex import Bittrex, API_V2_0
 import sched
 import pandas as pd
 import time
+from stockstats import StockDataFrame
 
-def historicalData(mercado,intervalo,token_tlgrm,id_conversacion):
+# Clase para repetir eventos periodicamente (Falta def stop)
+class PeriodicScheduler(object):                                                  
+    def __init__(self):                                                           
+        self.scheduler = sched.scheduler(time.time, time.sleep)                   
+                                                                            
+    def setup(self, interval, action, actionargs=()):                             
+        action(*actionargs)                                                       
+        self.scheduler.enter(interval, 1, self.setup,                             
+                        (interval, action, actionargs))                           
+                                                                        
+    def run(self):                                                                
+        self.scheduler.run()
+        
+def getData(mercado, intervalo):
+#        
+#        data = my_bittrex.get_latest_candle(mercado, intervalo)
+#        df = pd.DataFrame(data["result"])        
+#        filedf = pd.read_excel("data/" + mercado + ".xlsx")
+#        filedf = filedf.append(df, ignore_index=True)       
+#        filedf.to_excel("data/" + mercado + ".xlsx")
+    print("ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo)
+    my_bittrex = Bittrex(None, None, api_version=API_V2_0)
+    data = my_bittrex.get_candles(mercado, intervalo)
+    """ data["result"] para limpiar los datos anteriores a result """
+    df = pd.DataFrame(data["result"])
+    df = df.rename(index=str, columns={"BV": 'basevolume',"C": 'close',"H": 'high',"L": 'low',"O": 'open',"T": 'date',"V": '24hvolume'})
+    df.to_excel("data/" + mercado + ".xlsx")
+    
+def historicalData(mercado, intervalo, token_tlgrm, id_conversacion):
     
     """
     Descarga el histórico de datos de Bittrex del mercado pasado por argumento 
@@ -21,28 +50,7 @@ def historicalData(mercado,intervalo,token_tlgrm,id_conversacion):
         #mercado = "BTC-ETH"
         #intervalo = [“oneMin”, “fiveMin”, “thirtyMin”, “hour”, “day”]
     
-    """          
-    class PeriodicScheduler(object):                                                  
-        def __init__(self):                                                           
-            self.scheduler = sched.scheduler(time.time, time.sleep)                   
-                                                                                
-        def setup(self, interval, action, actionargs=()):                             
-            action(*actionargs)                                                       
-            self.scheduler.enter(interval, 1, self.setup,                             
-                            (interval, action, actionargs))                           
-                                                                            
-        def run(self):                                                                
-            self.scheduler.run()
-            
-    def getData(my_bittrex, mercado, intervalo):
-        print("OBTENIENDO DATO")
-        data2 = my_bittrex.get_latest_candle(mercado, intervalo)
-        df2 = pd.DataFrame(data2["result"])        
-        filedf = pd.read_excel("data/" + mercado + ".xlsx")
-        filedf = filedf.append(df2, ignore_index=True)       
-        filedf.to_excel("data/" + mercado + ".xlsx")
-        
-    print("Intervalo es: " + intervalo)
+    """                     
     
     if (intervalo == "day"):
         delay = 86400
@@ -56,18 +64,40 @@ def historicalData(mercado,intervalo,token_tlgrm,id_conversacion):
         delay = 60
     else:
         print("ERROR INTRODUCIENDO INTERVALO, COMPRUEBE LOS INTERVALOS DISPONIBLES")
-        
-    
-    my_bittrex = Bittrex(None, None, api_version=API_V2_0)
-    data = my_bittrex.get_candles(mercado, intervalo)
-    
-    """ data["result"] para limpiar los datos anteriores a result """
-    df = pd.DataFrame(data["result"])
-    df.to_excel("data/" + mercado + ".xlsx")
     
     periodic_scheduler = PeriodicScheduler()   
-    periodic_scheduler.setup(delay, getData, (my_bittrex, mercado, intervalo,)) # it executes the event just once 
-    periodic_scheduler.run() # it starts the scheduler
+    periodic_scheduler.setup(delay, getData, (mercado, intervalo,)) 
+    periodic_scheduler.run() 
+
+def comprar():
+    print("COMPRANDO")
+    
+def vender():
+    print("VENDIENDO")
+    
+def calcularPendiente(mercado, periodo):
+    filedf = pd.read_excel("data/" + mercado + ".xlsx")
+    df1 = filedf["close"][-periodo:]
+    df2 = filedf["close"][-periodo*2:-periodo]
+    #print("pendiente 1: " + str(df1.mean()))
+    #print("pendiente 2: " + str(df2.mean()))
+    if (df1.mean() >= df2.mean()):
+        return True
+    else: 
+        return False
+    
+
+def magicHour(mercado, periodo):
+    pendiente = calcularPendiente(mercado, periodo)
+    pendiente = True
+    if (pendiente == True):
+        print("Se va a analizar los datos")
+        stock = StockDataFrame.retype(pd.read_excel("data/" + mercado + ".xlsx"))
+        print("el RSI es: " + str(stock['rsi_6']))
+        comprar()
+    else:
+        print("Pendiente negativa, no se analizan datos")
+    
 
 #def currencycheck(bot, ident):
 #    """ 
