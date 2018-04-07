@@ -68,14 +68,34 @@ def funcion1(mercado, intervalo, bot, update):
     periodic_scheduler.setup(getDelay(intervalo), getData, (mercado, intervalo, bot, update,)) 
     periodic_scheduler.run() 
 
-def comprar():
-    print("COMPRANDO")
+def comprar(mercado, bot, update):
+    df1 = pd.read_excel("data/" + mercado + ".xlsx", index=None)
+    df2 = pd.read_excel("data/" + "resultados" + ".xlsx")
+#    df2 = df2.append(pd.DataFrame(df1["close"][-1:].as_matrix(columns=None)))
+    df2 = df2.append({'close': float(df1["close"][-1:])}, ignore_index=True)
+    df2.to_excel("data/" + "resultados" + ".xlsx")
+    text = "Se ha COMPRADO en " + str(float(df1["close"][-1:]))
+    bot.send_message(chat_id=update.message.chat_id, text=text)
     
-def vender():
-    print("VENDIENDO")
+def vender(mercado, bot, update):
+    df1 = pd.read_excel("data/" + mercado + ".xlsx")
+    df2 = pd.read_excel("data/" + "resultados" + ".xlsx")
+#    df2 = df2.append(pd.DataFrame(df1["close"][-1:].as_matrix(columns=None)))
+    df2 = df2.append({'close': float(df1["close"][-1:])}, ignore_index=True)
+    df2.to_excel("data/" + "resultados" + ".xlsx")
+    text = "Se ha VENDIDO en " + str(float(df1["close"][-1:]))
+    bot.send_message(chat_id=update.message.chat_id, text=text)
 
-def checkIntercect(mercado):
+def nada(mercado, bot, update):
+    text = "No se ha hecho NADA "
+    bot.send_message(chat_id=update.message.chat_id, text=text)
+    
+def checkIntercect(mercado, update):
     df = pd.read_excel("data/" + mercado + ".xlsx")
+#    update.message.reply_text("kdjk 1: " + str(df["kdjk"][-2:-1]))
+#    update.message.reply_text("kdjd 1: " + str(df["kdjd"][-2:-1]))
+#    update.message.reply_text("kdjk 2: " + str(df["kdjk"][-1:]))
+#    update.message.reply_text("kdjd 2: " + str(df["kdjd"][-1:]))
     if ((df["kdjk"][-2:-1] > df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] < df["kdjd"][-1:]).bool()):
         return True
     elif ((df["kdjk"][-2:-1] < df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] > df["kdjd"][-1:]).bool()):
@@ -83,24 +103,44 @@ def checkIntercect(mercado):
     else:
         return False
     
-def pintar(mercado):
+def pintarCruce(mercado, color):
     df = pd.read_excel("data/" + mercado + ".xlsx")
-    #    box = {
-#      'facecolor'  : '.75',
-#      'edgecolor' : 'k',
-#      'boxstyle'    : 'round'
-#    }
-    plt.figure(figsize=(50, 10))
-    
-#   plt.text(-0.5, -0.20, 'Brackmard minimum', bbox = box)
+    plt.figure(figsize=(50, 10))    
     plt.subplot(2,1,1)
     plt.title("CLOSE")
     plt.plot(df["close"][-72:])
     plt.subplot(2,1,2)
     plt.title("STOCHASTIC")
     plt.plot(df["kdjk"][-72:], c = 'b')
-    plt.plot(df["kdjd"][-72:], c = 'g')
-    #plt.plot(df["kdjj"][-72:], c = 'r')
+    plt.plot(df["kdjd"][-72:], c = 'magenta')
+    plt.plot(df["kdjj"][-72:], c = 'darkslateblue')
+    plt.axhline(80, color = 'r')
+    plt.axhline(20, color = 'r')
+    plt.axhspan(20,80, alpha = 0.25)
+    plt.axvline(len(df.index)-2+0.5, color = color)
+#    plt.annotate("",
+#            xy=(1933, 80), xycoords='data',
+#            xytext=(1935, 80), textcoords='data',
+#            arrowprops=dict(arrowstyle="->",
+#                            connectionstyle="arc3"),
+#            )
+    
+    plt.savefig("figure/" + mercado + ".png")
+
+def pintar(mercado):
+    df = pd.read_excel("data/" + mercado + ".xlsx")
+    plt.figure(figsize=(50, 10))    
+    plt.subplot(2,1,1)
+    plt.title("CLOSE")
+    plt.plot(df["close"][-72:])
+    plt.subplot(2,1,2)
+    plt.title("STOCHASTIC")
+    plt.plot(df["kdjk"][-72:], c = 'b')
+    plt.plot(df["kdjd"][-72:], c = 'magenta')
+    plt.plot(df["kdjj"][-72:], c = 'darkslateblue')
+    plt.axhline(80, color = 'r')
+    plt.axhline(20, color = 'r')
+    plt.axhspan(20,80, alpha = 0.25)
     plt.savefig("figure/" + mercado + ".png")
 
 def calcularPendiente(mercado, periodo):
@@ -115,15 +155,30 @@ def calcularPendiente(mercado, periodo):
         return False
     
 def funcion2(mercado, intervalo, bot, update):
+    time.sleep(10)
     periodic_scheduler = PeriodicScheduler()   
     periodic_scheduler.setup(getDelay(intervalo), magicfunc, (mercado, intervalo, bot, update,)) 
     periodic_scheduler.run() 
     
+def actuafunc(mercado, bot, update):
+    df = pd.read_excel("data/" + mercado + ".xlsx")
+    if (df["kdjk"][-2:-1].mean() >= 80):
+        vender(mercado, bot, update)
+        pintarCruce(mercado, 'r')
+    elif (df["kdjk"][-2:-1].mean() <= 20):
+        comprar(mercado, bot, update)
+        pintarCruce(mercado, 'g')
+    else:
+        nada(mercado, bot, update)
+        pintarCruce(mercado, 'y')
+
+    
 def magicfunc(mercado, intervalo, bot, update):
+    bot.send_message(chat_id=update.message.chat_id, text="ANALIZANDO...")
     #pendiente = calcularPendiente(mercado, periodo)#periodo tiene que ser un numero
     pendiente = True
     if (pendiente == True):
-        update.message.reply_text("Pendiente positiva, se analizarán datos.")
+        #update.message.reply_text("Pendiente positiva, se analizarán datos.")
         df = pd.read_excel("data/" + mercado + ".xlsx")
         stock = StockDataFrame.retype(df)
         df["kdjk"] = stock['kdjk']
@@ -132,16 +187,15 @@ def magicfunc(mercado, intervalo, bot, update):
         del df['kdjd_9']
         del df['kdjj_9']
         df.to_excel("data/" + mercado + ".xlsx")
-        pintar(mercado)
-        bot.send_photo(chat_id=update.message.chat_id, photo=open("figure/" + mercado + ".png", 'rb'))
-        if (checkIntercect(mercado) == True):
-            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
-            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
-            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
-            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
-
+        cruce = checkIntercect(mercado, update)
+        if (cruce == True):
+            bot.send_message(chat_id=update.message.chat_id, text="Se ha detectado un momento para actuar")
+            #bot.send_photo(chat_id=update.message.chat_id, photo=open("figure/" + mercado + ".png", 'rb'))
+            actuafunc(mercado, bot, update)
+        else:
+            pintar(mercado)
     else:
-        update.message.reply_text("Pendiente negativa, no se analizan datos")
+        bot.send_message(chat_id=update.message.chat_id, text="Pendiente negativa, no se analizan datos")
     
 
 #def currencycheck(bot, ident):
