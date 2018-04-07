@@ -5,7 +5,7 @@
 
 from telegram.ext import Updater, Filters, MessageHandler, CommandHandler
 import logging
-from functions import historicalData, magicHour
+from functions import funcion1, funcion2
 from threading import Thread
 import time
 
@@ -13,12 +13,13 @@ import time
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 # Mensaje en cuaquier caso
 def echo(bot, update):
-    text = "Escriba /start mercado(BTC-ETH) intervalo(hour) para arrancar el bot."
-    text = text + ' Escriba "/STOP" para parar (EMERGENCIA) ATENCION!'
-    text = text + ' con /STOP sólo se podrá volver a iniciar desde el ordenador'
-    bot.send_message(chat_id=update.message.chat_id, text=text)
+    texto = "Escriba /start mercado(BTC-ETH) intervalo(hour) para arrancar el bot."
+    texto = texto + ' Escriba "/STOP" para parar (EMERGENCIA) ATENCION!'
+    texto = texto + ' con /STOP sólo se podrá volver a iniciar desde el ordenador'
+    bot.send_message(chat_id=update.message.chat_id, text=texto)
 
 #  NO FUNCIONA
 def stop(bot, update):
@@ -32,16 +33,16 @@ def start(bot, update, args):
     """
     mercado = args[0] 
     intervalo = args[1]
-    thread1 = Thread(target = historicalData, args = (mercado, intervalo, token_tlgrm, id_conversacion,))
+    thread1 = Thread(target = funcion1, args = (mercado, intervalo, bot, update,))
     thread1.start()
-    time.sleep(1) #Para asegurarnos que se ha actualizado el excel
-    if (intervalo == "hour"):
-        thread2 = Thread(target = magicHour, args = ())
-        thread2.start()
+    time.sleep(10) #Para asegurarnos que se ha actualizado el excel
+    thread2 = Thread(target = funcion2, args = (mercado, intervalo, bot, update,))
+    thread2.start()
 
 def error(bot, update, error):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, error)
+    bot.send_message(chat_id=update.message.chat_id, text="Ha habido un error en el programa")
       
 def main():  
     
@@ -50,6 +51,7 @@ def main():
     id_conversacion = 500840093
     
     up = Updater(token=token_tlgrm)#Diego 
+    up.bot.send_message(chat_id=id_conversacion, text="Hola, el bot se acaba de iniciar.")
     up.dispatcher.add_handler(CommandHandler('STOP', stop))
     up.dispatcher.add_handler(CommandHandler('start', start, pass_args=True))
     up.dispatcher.add_handler(MessageHandler(Filters.text, echo))

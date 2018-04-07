@@ -10,6 +10,7 @@ import sched
 import pandas as pd
 import time
 from stockstats import StockDataFrame
+import matplotlib.pyplot as plt
 
 # Clase para repetir eventos periodicamente (Falta def stop)
 class PeriodicScheduler(object):                                                  
@@ -23,23 +24,34 @@ class PeriodicScheduler(object):
                                                                         
     def run(self):                                                                
         self.scheduler.run()
+
         
-def getData(mercado, intervalo):
-#        
-#        data = my_bittrex.get_latest_candle(mercado, intervalo)
-#        df = pd.DataFrame(data["result"])        
-#        filedf = pd.read_excel("data/" + mercado + ".xlsx")
-#        filedf = filedf.append(df, ignore_index=True)       
-#        filedf.to_excel("data/" + mercado + ".xlsx")
-    print("ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo)
+def getData(mercado, intervalo, bot, update):
+    texto = "ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo
+    bot.send_message(chat_id=update.message.chat_id, text=texto)
+    
     my_bittrex = Bittrex(None, None, api_version=API_V2_0)
     data = my_bittrex.get_candles(mercado, intervalo)
     """ data["result"] para limpiar los datos anteriores a result """
     df = pd.DataFrame(data["result"])
     df = df.rename(index=str, columns={"BV": 'basevolume',"C": 'close',"H": 'high',"L": 'low',"O": 'open',"T": 'date',"V": '24hvolume'})
     df.to_excel("data/" + mercado + ".xlsx")
+
+def getDelay(intervalo):
+    if (intervalo == "day"):
+        return 86400
+    elif(intervalo == "hour"):
+        return 3600
+    elif(intervalo == "thirtyMin"):
+        return 1800
+    elif(intervalo == "fiveMin"):
+        return 300
+    elif(intervalo == "oneMin"):
+        return 60
+    else:
+        return "ERROR INTRODUCIENDO INTERVALO, COMPRUEBE LOS INTERVALOS DISPONIBLES"
     
-def historicalData(mercado, intervalo, token_tlgrm, id_conversacion):
+def funcion1(mercado, intervalo, bot, update):
     
     """
     Descarga el histórico de datos de Bittrex del mercado pasado por argumento 
@@ -52,21 +64,8 @@ def historicalData(mercado, intervalo, token_tlgrm, id_conversacion):
     
     """                     
     
-    if (intervalo == "day"):
-        delay = 86400
-    elif(intervalo == "hour"):
-        delay = 3600
-    elif(intervalo == "thirtyMin"):
-        delay = 1800
-    elif(intervalo == "fiveMin"):
-        delay = 300
-    elif(intervalo == "oneMin"):
-        delay = 60
-    else:
-        print("ERROR INTRODUCIENDO INTERVALO, COMPRUEBE LOS INTERVALOS DISPONIBLES")
-    
     periodic_scheduler = PeriodicScheduler()   
-    periodic_scheduler.setup(delay, getData, (mercado, intervalo,)) 
+    periodic_scheduler.setup(getDelay(intervalo), getData, (mercado, intervalo, bot, update,)) 
     periodic_scheduler.run() 
 
 def comprar():
@@ -74,7 +73,36 @@ def comprar():
     
 def vender():
     print("VENDIENDO")
+
+def checkIntercect(mercado):
+    df = pd.read_excel("data/" + mercado + ".xlsx")
+    if ((df["kdjk"][-2:-1] > df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] < df["kdjd"][-1:]).bool()):
+        return True
+    elif ((df["kdjk"][-2:-1] < df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] > df["kdjd"][-1:]).bool()):
+        return True
+    else:
+        return False
     
+def pintar(mercado):
+    df = pd.read_excel("data/" + mercado + ".xlsx")
+    #    box = {
+#      'facecolor'  : '.75',
+#      'edgecolor' : 'k',
+#      'boxstyle'    : 'round'
+#    }
+    plt.figure(figsize=(50, 10))
+    
+#   plt.text(-0.5, -0.20, 'Brackmard minimum', bbox = box)
+    plt.subplot(2,1,1)
+    plt.title("CLOSE")
+    plt.plot(df["close"][-72:])
+    plt.subplot(2,1,2)
+    plt.title("STOCHASTIC")
+    plt.plot(df["kdjk"][-72:], c = 'b')
+    plt.plot(df["kdjd"][-72:], c = 'g')
+    #plt.plot(df["kdjj"][-72:], c = 'r')
+    plt.savefig("figure/" + mercado + ".png")
+
 def calcularPendiente(mercado, periodo):
     filedf = pd.read_excel("data/" + mercado + ".xlsx")
     df1 = filedf["close"][-periodo:]
@@ -86,17 +114,34 @@ def calcularPendiente(mercado, periodo):
     else: 
         return False
     
-
-def magicHour(mercado, periodo):
-    pendiente = calcularPendiente(mercado, periodo)
+def funcion2(mercado, intervalo, bot, update):
+    periodic_scheduler = PeriodicScheduler()   
+    periodic_scheduler.setup(getDelay(intervalo), magicfunc, (mercado, intervalo, bot, update,)) 
+    periodic_scheduler.run() 
+    
+def magicfunc(mercado, intervalo, bot, update):
+    #pendiente = calcularPendiente(mercado, periodo)#periodo tiene que ser un numero
     pendiente = True
     if (pendiente == True):
-        print("Se va a analizar los datos")
-        stock = StockDataFrame.retype(pd.read_excel("data/" + mercado + ".xlsx"))
-        print("el RSI es: " + str(stock['rsi_6']))
-        comprar()
+        update.message.reply_text("Pendiente positiva, se analizarán datos.")
+        df = pd.read_excel("data/" + mercado + ".xlsx")
+        stock = StockDataFrame.retype(df)
+        df["kdjk"] = stock['kdjk']
+        del df['rsv_9']
+        del df['kdjk_9']
+        del df['kdjd_9']
+        del df['kdjj_9']
+        df.to_excel("data/" + mercado + ".xlsx")
+        pintar(mercado)
+        bot.send_photo(chat_id=update.message.chat_id, photo=open("figure/" + mercado + ".png", 'rb'))
+        if (checkIntercect(mercado) == True):
+            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
+            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
+            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
+            update.message.reply_text("SE HA ENCONTRADO UN CRUCE")
+
     else:
-        print("Pendiente negativa, no se analizan datos")
+        update.message.reply_text("Pendiente negativa, no se analizan datos")
     
 
 #def currencycheck(bot, ident):
