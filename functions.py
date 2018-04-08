@@ -11,6 +11,11 @@ import pandas as pd
 import time
 from stockstats import StockDataFrame
 import matplotlib.pyplot as plt
+import telegram
+
+superior = 55
+inferior = 45
+buy = True 
 
 # Clase para repetir eventos periodicamente (Falta def stop)
 class PeriodicScheduler(object):                                                  
@@ -28,7 +33,10 @@ class PeriodicScheduler(object):
         
 def getData(mercado, intervalo, bot, update):
     texto = "ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo
-    bot.send_message(chat_id=update.message.chat_id, text=texto)
+    try:
+        bot.send_message(chat_id=update.message.chat_id, text=texto)
+    except telegram.error.TimedOut:
+        print("Ha habido un error enviando mensaje en getData")
     
     my_bittrex = Bittrex(None, None, api_version=API_V2_0)
     data = my_bittrex.get_candles(mercado, intervalo)
@@ -69,33 +77,41 @@ def funcion1(mercado, intervalo, bot, update):
     periodic_scheduler.run() 
 
 def comprar(mercado, bot, update):
+    global buy
     df1 = pd.read_excel("data/" + mercado + ".xlsx", index=None)
     df2 = pd.read_excel("data/" + "resultados" + ".xlsx")
-#    df2 = df2.append(pd.DataFrame(df1["close"][-1:].as_matrix(columns=None)))
-    df2 = df2.append({'close': float(df1["close"][-1:])}, ignore_index=True)
+    df2 = df2.append({'compra': float(df1["close"][-1:])}, ignore_index=True)
     df2.to_excel("data/" + "resultados" + ".xlsx")
-    text = "Se ha COMPRADO en " + str(float(df1["close"][-1:]))
-    bot.send_message(chat_id=update.message.chat_id, text=text)
+    texto = "Se ha COMPRADO en " + str(float(df1["close"][-1:]))
+    buy = False
+    try:
+        bot.send_message(chat_id=update.message.chat_id, text=texto)
+    except telegram.error.TimedOut:
+        print("Ha habido un error enviando mensaje en comprar")
     
 def vender(mercado, bot, update):
+    global buy
     df1 = pd.read_excel("data/" + mercado + ".xlsx")
     df2 = pd.read_excel("data/" + "resultados" + ".xlsx")
-#    df2 = df2.append(pd.DataFrame(df1["close"][-1:].as_matrix(columns=None)))
-    df2 = df2.append({'close': float(df1["close"][-1:])}, ignore_index=True)
+    df2 = df2.append({'venta': float(df1["close"][-1:])}, ignore_index=True)
     df2.to_excel("data/" + "resultados" + ".xlsx")
-    text = "Se ha VENDIDO en " + str(float(df1["close"][-1:]))
-    bot.send_message(chat_id=update.message.chat_id, text=text)
+    texto = "Se ha VENDIDO en " + str(float(df1["close"][-1:]))
+    buy = True
+    try:
+        bot.send_message(chat_id=update.message.chat_id, text=texto)
+    except telegram.error.TimedOut:
+        print("Ha habido un error enviando mensaje en vender")
 
 def nada(mercado, bot, update):
-    text = "No se ha hecho NADA "
-    bot.send_message(chat_id=update.message.chat_id, text=text)
+    texto = "No se ha hecho NADA "
+    try:
+        bot.send_message(chat_id=update.message.chat_id, text=texto)
+    except telegram.error.TimedOut:
+        print("Ha habido un error enviando mensaje en funcion nada")
+    
     
 def checkIntercect(mercado, update):
     df = pd.read_excel("data/" + mercado + ".xlsx")
-#    update.message.reply_text("kdjk 1: " + str(df["kdjk"][-2:-1]))
-#    update.message.reply_text("kdjd 1: " + str(df["kdjd"][-2:-1]))
-#    update.message.reply_text("kdjk 2: " + str(df["kdjk"][-1:]))
-#    update.message.reply_text("kdjd 2: " + str(df["kdjd"][-1:]))
     if ((df["kdjk"][-2:-1] > df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] < df["kdjd"][-1:]).bool()):
         return True
     elif ((df["kdjk"][-2:-1] < df["kdjd"][-2:-1]).bool() and (df["kdjk"][-1:] > df["kdjd"][-1:]).bool()):
@@ -114,17 +130,10 @@ def pintarCruce(mercado, color):
     plt.plot(df["kdjk"][-72:], c = 'b')
     plt.plot(df["kdjd"][-72:], c = 'magenta')
     plt.plot(df["kdjj"][-72:], c = 'darkslateblue')
-    plt.axhline(80, color = 'r')
-    plt.axhline(20, color = 'r')
-    plt.axhspan(20,80, alpha = 0.25)
-    plt.axvline(len(df.index)-2+0.5, color = color)
-#    plt.annotate("",
-#            xy=(1933, 80), xycoords='data',
-#            xytext=(1935, 80), textcoords='data',
-#            arrowprops=dict(arrowstyle="->",
-#                            connectionstyle="arc3"),
-#            )
-    
+    plt.axhline(superior, color = 'r')
+    plt.axhline(inferior, color = 'r')
+    plt.axhspan(inferior,superior, alpha = 0.25)
+    plt.axvline(len(df.index)-2+0.5, color = color)   
     plt.savefig("figure/" + mercado + ".png")
 
 def pintar(mercado):
@@ -138,9 +147,9 @@ def pintar(mercado):
     plt.plot(df["kdjk"][-72:], c = 'b')
     plt.plot(df["kdjd"][-72:], c = 'magenta')
     plt.plot(df["kdjj"][-72:], c = 'darkslateblue')
-    plt.axhline(80, color = 'r')
-    plt.axhline(20, color = 'r')
-    plt.axhspan(20,80, alpha = 0.25)
+    plt.axhline(superior, color = 'r')
+    plt.axhline(inferior, color = 'r')
+    plt.axhspan(inferior,superior, alpha = 0.25)
     plt.savefig("figure/" + mercado + ".png")
 
 def calcularPendiente(mercado, periodo):
@@ -162,10 +171,12 @@ def funcion2(mercado, intervalo, bot, update):
     
 def actuafunc(mercado, bot, update):
     df = pd.read_excel("data/" + mercado + ".xlsx")
-    if (df["kdjk"][-2:-1].mean() >= 80):
+    print("Buy es: " + str(buy))
+    print("La media es: " + str(df["kdjk"][-2:].mean()))
+    if ((df["kdjk"][-2:].mean() >= superior) and buy == False):
         vender(mercado, bot, update)
         pintarCruce(mercado, 'r')
-    elif (df["kdjk"][-2:-1].mean() <= 20):
+    elif ((df["kdjk"][-2:].mean() <= inferior) and buy == True):
         comprar(mercado, bot, update)
         pintarCruce(mercado, 'g')
     else:
@@ -174,26 +185,42 @@ def actuafunc(mercado, bot, update):
 
     
 def magicfunc(mercado, intervalo, bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text="ANALIZANDO...")
+    
+    try:
+        bot.send_message(chat_id=update.message.chat_id, text="ANALIZANDO...")
+    except telegram.error.TimedOut:
+        print ("Ha habido un error enviando el mensaje ANALIZANDO...")
     #pendiente = calcularPendiente(mercado, periodo)#periodo tiene que ser un numero
     pendiente = True
     if (pendiente == True):
         #update.message.reply_text("Pendiente positiva, se analizarán datos.")
-        df = pd.read_excel("data/" + mercado + ".xlsx")
-        stock = StockDataFrame.retype(df)
-        df["kdjk"] = stock['kdjk']
-        del df['rsv_9']
-        del df['kdjk_9']
-        del df['kdjd_9']
-        del df['kdjj_9']
-        df.to_excel("data/" + mercado + ".xlsx")
-        cruce = checkIntercect(mercado, update)
-        if (cruce == True):
-            bot.send_message(chat_id=update.message.chat_id, text="Se ha detectado un momento para actuar")
-            #bot.send_photo(chat_id=update.message.chat_id, photo=open("figure/" + mercado + ".png", 'rb'))
-            actuafunc(mercado, bot, update)
-        else:
-            pintar(mercado)
+        try:
+            df = pd.read_excel("data/" + mercado + ".xlsx")
+            stock = StockDataFrame.retype(df)
+            df["kdjk"] = stock['kdjk']
+            del df['rsv_9']
+            del df['kdjk_9']
+            del df['kdjd_9']
+            del df['kdjj_9']
+            df.to_excel("data/" + mercado + ".xlsx")
+            try:
+                cruce = checkIntercect(mercado, update)
+            except IndexError:
+                print("Ha habido un error en checkIntercect")
+            if (cruce == True):
+                try:
+                    bot.send_message(chat_id=update.message.chat_id, text="Se ha detectado un momento para actuar")
+                except telegram.error.TimedOut:
+                    print("Se ha producido un error enviando el mensaje de deteccion del momento")
+                actuafunc(mercado, bot, update)
+                try: 
+                    bot.send_photo(chat_id=update.message.chat_id, photo=open("figure/" + mercado + ".png", 'rb')) 
+                except telegram.error.TimedOut:
+                    print("Se ha producido un error enviando la imagen")
+            else:
+                pintar(mercado)
+        except EOFError:
+            print("Ha habido un error leyendo el excel pero el programa debería seguir funcionando")
     else:
         bot.send_message(chat_id=update.message.chat_id, text="Pendiente negativa, no se analizan datos")
     
