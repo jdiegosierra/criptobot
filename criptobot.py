@@ -8,7 +8,7 @@ Created on Thu Mar 29 00:32:32 2018
 from telegram.ext import Updater, Filters, MessageHandler, CommandHandler
 import logging
 from functions import funcion1, funcion2
-from threading import Thread
+import threading
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -39,9 +39,12 @@ def start(bot, update, args):
     
     mercado = args[0] 
     intervalo = args[1]
-    thread1 = Thread(target = funcion1, args = (mercado, intervalo, bot, update,))
+    sem1 = threading.Semaphore()
+    sem2 = threading.Semaphore(value=0)
+    
+    thread1 = threading.Thread(target = funcion1, args = (mercado, intervalo, bot, update, sem1, sem2,))
     thread1.start()
-    thread2 = Thread(target = funcion2, args = (mercado, intervalo, bot, update,))
+    thread2 = threading.Thread(target = funcion2, args = (mercado, intervalo, bot, update, sem1, sem2,))
     thread2.start()
     
 # Registra errores 

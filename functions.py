@@ -15,7 +15,9 @@ import telegram
 
 superior = 55
 inferior = 45
-buy = True 
+buy = True
+contador1 = 0
+contador2 = 0 
 
 # Clase para repetir eventos periodicamente (Falta def stop)
 class PeriodicScheduler(object):                                                  
@@ -31,19 +33,28 @@ class PeriodicScheduler(object):
         self.scheduler.run()
 
         
-def getData(mercado, intervalo, bot, update):
-    texto = "ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo
+def getData(mercado, intervalo, bot, update, evento1, evento2):
+
+    evento1.acquire()
+    print("Empieza hilo 1")
+    
+    global contador1 
     try:
+        texto = "[" + str(contador1) + "] ACTUALIZANDO EXCEL DE " + mercado + " CON INTERVALO " + intervalo
         bot.send_message(chat_id=update.message.chat_id, text=texto)
     except telegram.error.TimedOut:
         print("Ha habido un error enviando mensaje en getData")
-    
+    contador1 += 1
     my_bittrex = Bittrex(None, None, api_version=API_V2_0)
     data = my_bittrex.get_candles(mercado, intervalo)
     """ data["result"] para limpiar los datos anteriores a result """
     df = pd.DataFrame(data["result"])
     df = df.rename(index=str, columns={"BV": 'basevolume',"C": 'close',"H": 'high',"L": 'low',"O": 'open',"T": 'date',"V": '24hvolume'})
     df.to_excel("data/" + mercado + ".xlsx")
+    
+    
+    evento2.release()
+    print("Se da paso a hilo 2")
 
 def getDelay(intervalo):
     if (intervalo == "day"):
@@ -59,7 +70,7 @@ def getDelay(intervalo):
     else:
         return "ERROR INTRODUCIENDO INTERVALO, COMPRUEBE LOS INTERVALOS DISPONIBLES"
     
-def funcion1(mercado, intervalo, bot, update):
+def funcion1(mercado, intervalo, bot, update, evento1, evento2):
     
     """
     Descarga el histórico de datos de Bittrex del mercado pasado por argumento 
@@ -73,7 +84,7 @@ def funcion1(mercado, intervalo, bot, update):
     """                     
     
     periodic_scheduler = PeriodicScheduler()   
-    periodic_scheduler.setup(getDelay(intervalo), getData, (mercado, intervalo, bot, update,)) 
+    periodic_scheduler.setup(getDelay(intervalo), getData, (mercado, intervalo, bot, update, evento1, evento2,)) 
     periodic_scheduler.run() 
 
 def comprar(mercado, bot, update):
@@ -163,10 +174,9 @@ def calcularPendiente(mercado, periodo):
     else: 
         return False
     
-def funcion2(mercado, intervalo, bot, update):
-    time.sleep(10)
+def funcion2(mercado, intervalo, bot, update, evento1, evento2):
     periodic_scheduler = PeriodicScheduler()   
-    periodic_scheduler.setup(getDelay(intervalo), magicfunc, (mercado, intervalo, bot, update,)) 
+    periodic_scheduler.setup(getDelay(intervalo), magicfunc, (mercado, intervalo, bot, update, evento1, evento2)) 
     periodic_scheduler.run() 
     
 def actuafunc(mercado, bot, update):
@@ -184,12 +194,19 @@ def actuafunc(mercado, bot, update):
         pintarCruce(mercado, 'y')
 
     
-def magicfunc(mercado, intervalo, bot, update):
-    
+def magicfunc(mercado, intervalo, bot, update, evento1, evento2):
+    evento2.acquire()
+    print("Empieza hilo 2")
+
+
+    global contador2
+
     try:
-        bot.send_message(chat_id=update.message.chat_id, text="ANALIZANDO...")
+        texto = "[" + str(contador2) + "] ANALIZANDO..."
+        bot.send_message(chat_id=update.message.chat_id, text=texto)
     except telegram.error.TimedOut:
         print ("Ha habido un error enviando el mensaje ANALIZANDO...")
+    contador2 += 1
     #pendiente = calcularPendiente(mercado, periodo)#periodo tiene que ser un numero
     pendiente = True
     if (pendiente == True):
@@ -218,12 +235,18 @@ def magicfunc(mercado, intervalo, bot, update):
                 except telegram.error.TimedOut:
                     print("Se ha producido un error enviando la imagen")
             else:
+                try:
+                    bot.send_message(chat_id=update.message.chat_id, text="No se ha encontrado un momento para actuar")
+                except telegram.error.TimedOut:
+                    print("Se ha producido un error enviando el mensaje de deteccion del momento")                
                 pintar(mercado)
         except EOFError:
             print("Ha habido un error leyendo el excel pero el programa debería seguir funcionando")
     else:
         bot.send_message(chat_id=update.message.chat_id, text="Pendiente negativa, no se analizan datos")
-    
+        
+    evento1.release()
+    print("Se da paso a hilo 1")
 
 #def currencycheck(bot, ident):
 #    """ 
